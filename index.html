@@ -217,14 +217,29 @@ const LEVELS = [
 ];
 let levelIdx = 1;
 
+function shuffled(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]];} return a; }
 
-const DEMO=[
-[1,2,3,4,5,6],
-[4,5,6,1,2,3],
-[2,3,1,5,6,4],
-[5,6,4,2,3,1],
-[3,1,2,6,4,5],
-[6,4,5,3,1,2]];
+function genSolved(n, boxR, boxC){
+  const g=Array.from({length:n},()=>Array(n).fill(0));
+  const digits=[]; for(let v=1;v<=n;v++) digits.push(v);
+  function ok(r,c,v){
+    for(let i=0;i<n;i++){ if(g[r][i]===v||g[i][c]===v) return false; }
+    const br=r-r%boxR, bc=c-c%boxC;
+    for(let r2=0;r2<boxR;r2++) for(let c2=0;c2<boxC;c2++)
+      if(g[br+r2][bc+c2]===v) return false;
+    return true;
+  }
+  function fill(i){
+    if(i===n*n) return true;
+    const r=(i/n)|0, c=i%n;
+    for(const v of shuffled(digits)){
+      if(ok(r,c,v)){ g[r][c]=v; if(fill(i+1)) return true; g[r][c]=0; }
+    }
+    return false;
+  }
+  fill(0); return g;
+}
+
 // ---- UI ----
 const $=id=>document.getElementById(id);
 const els={ board:$("board"), verdict:$("verdict"), verdictHead:$("verdictHead"), verdictBody:$("verdictBody"),
@@ -286,9 +301,25 @@ function refresh(){
   if(S.revealed) els.btnExpose.setAttribute("aria-disabled","true"); else els.btnExpose.removeAttribute("aria-disabled");
 }
 
-S={shown:DEMO,flags:new Set(),hints:new Set(),lies:[],nLies:0,revealed:false,score:0};
-render();
+function newRound(){
+  clearInterval(S && S.timer);
+  const cfg=LEVELS[levelIdx];
+  const size=SIZES[cfg.size];
+  const sol=genSolved(size.n,size.boxR,size.boxC);
+  const shown=sol.map(r=>r.slice()), lies=[];
+  S={ sol, shown, lies, flags:new Set(), hints:new Set(), nLies:lies.length, revealed:false,
+      score:(S?S.score:0), t0:Date.now(), };
+  els.statTime.textContent="0:00";
+  els.verdictHead.textContent="The presses are ready.";
+  els.verdictBody.textContent="Tap a cell to flag it as a suspected lie, then reveal.";
+  els.verdict.classList.remove("guard");
+  els.board.classList.remove("shake");
+  els.btnHint.classList.remove("denied"); els.btnClear.classList.remove("denied"); els.btnExpose.classList.remove("denied");
+  render();
+}
 
+els.btnNew.addEventListener("click", newRound);
+newRound();
 </script>
 </body>
 </html>
