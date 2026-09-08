@@ -240,6 +240,89 @@ function genSolved(n, boxR, boxC){
   fill(0); return g;
 }
 
+function hasDup(arr){ const s=new Set(); for(const v of arr){ if(s.has(v)) return true; s.add(v); } return false; }
+function rowHasDup(b,r){ return hasDup(b[r]); }
+function colHasDup(b,c,n){ const s=new Set(); for(let r=0;r<n;r++){ if(s.has(b[r][c])) return true; s.add(b[r][c]); } return false; }
+function boxHasDup(b,r,c,boxR,boxC){ const s=new Set(), br=r-r%boxR, bc=c-c%boxC;
+  for(let r2=0;r2<boxR;r2++) for(let c2=0;c2<boxC;c2++){ const v=b[br+r2][bc+c2]; if(s.has(v)) return true; s.add(v); } return false; }
+function detectable(b,r,c,n,boxR,boxC){ return rowHasDup(b,r)||colHasDup(b,c,n)||boxHasDup(b,r,c,boxR,boxC); }
+
+function plantLies(sol, cfg, size){
+  const n=size.n, boxR=size.boxR, boxC=size.boxC;
+  const nBoxCols=n/boxC, nBoxes=(n/boxR)*nBoxCols;
+  const boxOf=(r,c)=>((r/boxR)|0)*nBoxCols+((c/boxC)|0);
+  const allCells=[...Array(n*n).keys()];
+  const allBoxes=[...Array(nBoxes).keys()];
+  for(let attempt=0; attempt<80; attempt++){
+    const shown=sol.map(r=>r.slice());
+    const lies=[];
+    const usedRows=new Set(), usedCols=new Set(), usedBoxes=new Set();
+    let good=true;
+
+    // Single-cell lies: in a valid grid each unit holds every digit exactly
+    // once, so replacing one cell's digit duplicates the new digit in its
+    // row, its column, AND its box. Three tells, every time, on any board size.
+    for(const k of shuffled(allCells)){
+      if(lies.length>=cfg.singles) break;
+      const r=(k/n)|0, c=k%n, b=boxOf(r,c);
+      if(cfg.spread && (usedRows.has(r)||usedCols.has(c)||usedBoxes.has(b))) continue;
+      const opts=[]; for(let v=1;v<=n;v++) if(v!==sol[r][c]) opts.push(v);
+      shown[r][c]=shuffled(opts)[0];
+      lies.push(k); usedRows.add(r); usedCols.add(c); usedBoxes.add(b);
+    }
+    if(lies.length<cfg.singles) good=false;
+
+    // Swap lies: two cells in one box mini-row trade digits. The row and the
+    // box keep their exact multisets, so both stay valid; each of the two
+    // columns gains a duplicate. Only the columns give the lie away.
+    for(let s=0; s<cfg.swaps && good; s++){
+      let placed=false;
+      for(const b of shuffled(allBoxes)){
+        if(cfg.spread && usedBoxes.has(b)) continue;
+        const br=((b/nBoxCols)|0)*boxR, bc=(b%nBoxCols)*boxC;
+        const drows=[]; for(let dr=0;dr<boxR;dr++) drows.push(dr);
+        for(const dr of shuffled(drows)){
+          const r=br+dr;
+          if(cfg.spread && usedRows.has(r)) continue;
+          const doffs=[]; for(let dc=0;dc<boxC;dc++) doffs.push(dc);
+          const off=shuffled(doffs), c1=bc+off[0], c2=bc+off[1];
+          const k1=r*n+c1, k2=r*n+c2;
+          if(lies.includes(k1)||lies.includes(k2)) continue;
+          const t=shown[r][c1]; shown[r][c1]=shown[r][c2]; shown[r][c2]=t;
+          lies.push(k1,k2); usedRows.add(r); usedBoxes.add(b);
+          usedCols.add(c1); usedCols.add(c2);
+          placed=true; break;
+        }
+        if(placed) break;
+      }
+      if(!placed) good=false;
+    }
+    if(!good) continue;
+
+    // Verify: every altered cell sits in at least one broken unit. Retries
+    // cover the rare case where a later swap repairs an earlier column.
+    let allBad=true;
+    for(const k of lies){
+      const r=(k/n)|0, c=k%n;
+      if(!detectable(shown,r,c,n,boxR,boxC)){ allBad=false; break; }
+    }
+    if(allBad) return {shown, lies};
+  }
+  // Fallback, always placeable: spread single-cell lies.
+  const shown=sol.map(r=>r.slice()), lies=[];
+  const total=cfg.singles+2*cfg.swaps;
+  const usedRows=new Set(), usedCols=new Set(), usedBoxes=new Set();
+  for(const k of shuffled(allCells)){
+    if(lies.length>=total) break;
+    const r=(k/n)|0, c=k%n, b=boxOf(r,c);
+    if(usedRows.has(r)||usedCols.has(c)||usedBoxes.has(b)) continue;
+    const opts=[]; for(let v=1;v<=n;v++) if(v!==sol[r][c]) opts.push(v);
+    shown[r][c]=shuffled(opts)[0];
+    lies.push(k); usedRows.add(r); usedCols.add(c); usedBoxes.add(b);
+  }
+  return {shown, lies};
+}
+
 // ---- UI ----
 const $=id=>document.getElementById(id);
 const els={ board:$("board"), verdict:$("verdict"), verdictHead:$("verdictHead"), verdictBody:$("verdictBody"),
@@ -306,7 +389,7 @@ function newRound(){
   const cfg=LEVELS[levelIdx];
   const size=SIZES[cfg.size];
   const sol=genSolved(size.n,size.boxR,size.boxC);
-  const shown=sol.map(r=>r.slice()), lies=[];
+  const {shown, lies}=plantLies(sol,cfg,size);
   S={ sol, shown, lies, flags:new Set(), hints:new Set(), nLies:lies.length, revealed:false,
       score:(S?S.score:0), t0:Date.now(), };
   els.statTime.textContent="0:00";
@@ -318,7 +401,53 @@ function newRound(){
   render();
 }
 
+function expose(){
+  if(S.revealed){ deny(els.btnExpose); return; }
+  if(S.flags.size===0){
+    els.verdictHead.textContent="No suspects named.";
+    els.verdictBody.textContent="Flag at least one cell before going to press.";
+    els.verdict.classList.add("guard");
+    deny(els.btnExpose);
+    deny(els.verdict);
+    return;
+  }
+  S.revealed=true; clearInterval(S.timer);
+  const hits=S.lies.filter(k=>S.flags.has(k));
+  const misses=[...S.flags].filter(k=>!S.lies.includes(k));
+  const escaped=S.lies.filter(k=>!S.flags.has(k));
+  for(const k of hits)   cells().find(e=>+e.dataset.k===k).classList.add("hit");
+  for(const k of misses) cells().find(e=>+e.dataset.k===k).classList.add("miss");
+  for(const k of escaped)cells().find(e=>+e.dataset.k===k).classList.add("escaped");
+  if(misses.length>0){ els.board.classList.remove("shake"); void els.board.offsetWidth; els.board.classList.add("shake"); }
+  const penalty=Math.min(misses.length*25, 50); // false-accusation penalty caps at 50 per board
+  const pts=hits.length*100 - penalty;
+  S.score+=pts;
+  els.statScore.textContent=S.score;
+  els.statScore.classList.remove("pop"); void els.statScore.offsetWidth; els.statScore.classList.add("pop");
+  refresh();
+  els.verdict.classList.remove("guard");
+  const plural=(w,n)=>n===1?w:w+"s";
+  if(escaped.length===0 && misses.length===0){
+    els.verdictHead.textContent="All lies caught.";
+    els.verdictBody.innerHTML=`Every ${plural("lie",hits.length)} exposed, no false accusations. <span class="score">${pts>=0?"+":""}${pts}.</span>`;
+  }else if(escaped.length===0){
+    els.verdictHead.textContent="All lies caught, with corrections.";
+    els.verdictBody.innerHTML=`${misses.length} false ${plural("accusation",misses.length)} printed${misses.length*25>50?" (penalty capped at &minus;50)":""}. <span class="score">${pts>=0?"+":""}${pts}.</span>`;
+  }else{
+    els.verdictHead.textContent=`${escaped.length} ${plural("lie",escaped.length)} still at large.`;
+    els.verdictBody.innerHTML=`Caught ${hits.length} of ${S.lies.length}. ${misses.length} false ${plural("accusation",misses.length)}${misses.length*25>50?" (penalty capped at &minus;50)":""}. <span class="score">${pts>=0?"+":""}${pts}.</span> The circled cells fooled you.`;
+  }
+}
+
 els.btnNew.addEventListener("click", newRound);
+els.btnClear.addEventListener("click", ()=>{
+  if(S.revealed){ deny(els.btnClear); return; }
+  S.flags.clear();
+  cells().forEach(e=>e.classList.remove("flag"));
+  refresh();
+});
+els.btnExpose.addEventListener("click", expose);
+
 newRound();
 </script>
 </body>
