@@ -333,6 +333,18 @@ const els={ board:$("board"), verdict:$("verdict"), verdictHead:$("verdictHead")
 
 function fmtTime(s){ return ((s/60)|0)+":"+String(s%60).padStart(2,"0"); }
 
+function renderDiff(){
+  els.diffRow.innerHTML="";
+  LEVELS.forEach((L,i)=>{
+    const b=document.createElement("button");
+    b.textContent=L.name; b.setAttribute("role","tab");
+    if(i===levelIdx) b.classList.add("on");
+    b.addEventListener("click",()=>{ if(i===levelIdx) return; levelIdx=i; renderDiff(); newRound(); });
+    els.diffRow.appendChild(b);
+  });
+  els.diffNote.textContent=LEVELS[levelIdx].note;
+}
+
 function render(){
   const size=SIZES[LEVELS[levelIdx].size];
   const n=size.n, boxR=size.boxR, boxC=size.boxC;
@@ -355,6 +367,7 @@ function render(){
     els.board.appendChild(d);
   }
   refresh();
+  applyPresenter();
   applyHints();
 }
 
@@ -391,7 +404,8 @@ function newRound(){
   const sol=genSolved(size.n,size.boxR,size.boxC);
   const {shown, lies}=plantLies(sol,cfg,size);
   S={ sol, shown, lies, flags:new Set(), hints:new Set(), nLies:lies.length, revealed:false,
-      score:(S?S.score:0), t0:Date.now(), };
+      score:(S?S.score:0), t0:Date.now(),
+      timer:setInterval(()=>{ els.statTime.textContent=fmtTime(((Date.now()-S.t0)/1000)|0); },500) };
   els.statTime.textContent="0:00";
   els.verdictHead.textContent="The presses are ready.";
   els.verdictBody.textContent="Tap a cell to flag it as a suspected lie, then reveal.";
@@ -448,6 +462,7 @@ els.btnClear.addEventListener("click", ()=>{
 });
 els.btnExpose.addEventListener("click", expose);
 
+renderDiff();
 newRound();
 </script>
 </body>
