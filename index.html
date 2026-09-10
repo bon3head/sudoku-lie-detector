@@ -454,6 +454,15 @@ function expose(){
 }
 
 els.btnNew.addEventListener("click", newRound);
+function giveHint(){
+  if(S.revealed){ deny(els.btnHint); return; }
+  const cands=S.lies.filter(k=>!S.flags.has(k)&&!S.hints.has(k));
+  if(cands.length===0){ deny(els.btnHint); return; }
+  const k=cands[(Math.random()*cands.length)|0];
+  S.hints.add(k);
+  cells().find(e=>+e.dataset.k===k).classList.add("hinted");
+}
+els.btnHint.addEventListener("click", giveHint);
 els.btnClear.addEventListener("click", ()=>{
   if(S.revealed){ deny(els.btnClear); return; }
   S.flags.clear();
