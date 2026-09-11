@@ -397,6 +397,29 @@ function refresh(){
   if(S.revealed) els.btnExpose.setAttribute("aria-disabled","true"); else els.btnExpose.removeAttribute("aria-disabled");
 }
 
+let presenting=false;
+function applyPresenter(){
+  if(typeof S==="undefined"||!S) return;
+  cells().forEach(e=>e.classList.toggle("preslie",presenting&&S.lies.includes(+e.dataset.k)));
+}
+(function(){
+  if(typeof document==="undefined"||!document.querySelector) return;
+  const kicker=document.querySelector(".kicker");
+  if(!kicker) return;
+  let tapN=0,tapT=0;
+  kicker.style.cursor="default";
+  kicker.addEventListener("click",()=>{
+    const now=Date.now();
+    if(now-tapT>1200) tapN=0;
+    tapT=now; tapN++;
+    if(tapN>=3){
+      tapN=0; presenting=!presenting;
+      document.body.classList.toggle("presenting",presenting);
+      applyPresenter();
+    }
+  });
+})();
+
 function newRound(){
   clearInterval(S && S.timer);
   const cfg=LEVELS[levelIdx];
