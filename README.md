@@ -41,3 +41,5 @@ Escaped lies just hurt your pride.
 - `expose` — compares flags against planted lies, scores, renders the verdict.
 
 Single self-contained file by design: open and play.
+
+*Built for the SUNY New Paltz Math Club.*
