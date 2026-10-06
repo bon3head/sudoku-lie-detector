@@ -197,8 +197,6 @@
 <script>
 let S = null;
 
-// Board geometry. Every size is a logically valid sudoku variant: each row,
-// column, and boxR x boxC box holds the digits 1..n exactly once.
 const SIZES = {
   "4x4": {n:4, boxR:2, boxC:2},
   "6x6": {n:6, boxR:2, boxC:3},
@@ -259,9 +257,7 @@ function plantLies(sol, cfg, size){
     const usedRows=new Set(), usedCols=new Set(), usedBoxes=new Set();
     let good=true;
 
-    // Single-cell lies: in a valid grid each unit holds every digit exactly
-    // once, so replacing one cell's digit duplicates the new digit in its
-    // row, its column, AND its box. Three tells, every time, on any board size.
+    // one changed digit duplicates in its row, column, and box: three tells
     for(const k of shuffled(allCells)){
       if(lies.length>=cfg.singles) break;
       const r=(k/n)|0, c=k%n, b=boxOf(r,c);
@@ -272,14 +268,12 @@ function plantLies(sol, cfg, size){
     }
     if(lies.length<cfg.singles) good=false;
 
-    // Swap lies: two cells in one box mini-row trade digits. The row and the
-    // box keep their exact multisets, so both stay valid; each of the two
-    // columns gains a duplicate. Only the columns give the lie away.
     for(let s=0; s<cfg.swaps && good; s++){
       let placed=false;
       for(const b of shuffled(allBoxes)){
         if(cfg.spread && usedBoxes.has(b)) continue;
-        const br=((b/nBoxCols)|0)*boxR, bc=(b%nBoxCols)*boxC;
+        // swaps keep rows and boxes valid; only columns break
+    const br=((b/nBoxCols)|0)*boxR, bc=(b%nBoxCols)*boxC;
         const drows=[]; for(let dr=0;dr<boxR;dr++) drows.push(dr);
         for(const dr of shuffled(drows)){
           const r=br+dr;
@@ -299,8 +293,6 @@ function plantLies(sol, cfg, size){
     }
     if(!good) continue;
 
-    // Verify: every altered cell sits in at least one broken unit. Retries
-    // cover the rare case where a later swap repairs an earlier column.
     let allBad=true;
     for(const k of lies){
       const r=(k/n)|0, c=k%n;
@@ -308,7 +300,7 @@ function plantLies(sol, cfg, size){
     }
     if(allBad) return {shown, lies};
   }
-  // Fallback, always placeable: spread single-cell lies.
+
   const shown=sol.map(r=>r.slice()), lies=[];
   const total=cfg.singles+2*cfg.swaps;
   const usedRows=new Set(), usedCols=new Set(), usedBoxes=new Set();
@@ -323,7 +315,6 @@ function plantLies(sol, cfg, size){
   return {shown, lies};
 }
 
-// ---- UI ----
 const $=id=>document.getElementById(id);
 const els={ board:$("board"), verdict:$("verdict"), verdictHead:$("verdictHead"), verdictBody:$("verdictBody"),
   statLies:$("statLies"), lieCountLabel:$("lieCountLabel"), statFlags:$("statFlags"),
@@ -456,7 +447,7 @@ function expose(){
   for(const k of misses) cells().find(e=>+e.dataset.k===k).classList.add("miss");
   for(const k of escaped)cells().find(e=>+e.dataset.k===k).classList.add("escaped");
   if(misses.length>0){ els.board.classList.remove("shake"); void els.board.offsetWidth; els.board.classList.add("shake"); }
-  const penalty=Math.min(misses.length*25, 50); // false-accusation penalty caps at 50 per board
+  const penalty=Math.min(misses.length*25, 50); // false accusations capped at -50
   const pts=hits.length*100 - penalty;
   S.score+=pts;
   els.statScore.textContent=S.score;
