@@ -9,6 +9,8 @@ what you falsely accused.
 
 ## Play
 
+Live: https://math-club-oracle.vercel.app
+
 Open `index.html` in a browser. Zero dependencies, no build step.
 
 - Click a cell to flag it as a lie. Click again to unflag.
