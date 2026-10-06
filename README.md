@@ -42,4 +42,4 @@ Escaped lies just hurt your pride.
 
 Single self-contained file by design: open and play.
 
-*Built for the SUNY New Paltz Math Club.*
+*Built for the [SUNY New Paltz Math Club](https://new-paltz-math-club-website-43509a.gitlab.io/index.html).*
